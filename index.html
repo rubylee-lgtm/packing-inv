@@ -1,474 +1,588 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8" />
-    <title>Packing List 產生工具</title>
-    <link
-        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-        rel="stylesheet"
-        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
-        crossorigin="anonymous"
-    />
-    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <style>
-        body {
-            background-color: #f5f5f7;
-        }
-        .container-main {
-            max-width: 960px;
-            margin-top: 40px;
-            margin-bottom: 40px;
-            background: #ffffff;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-            padding: 32px 32px 40px;
-        }
-        .preview-table-wrapper {
-            max-height: 360px;
-            overflow: auto;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            background-color: #fafafa;
-        }
-        table.preview-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-        table.preview-table th,
-        table.preview-table td {
-            border: 1px solid #dee2e6;
-            padding: 6px 8px;
-            white-space: nowrap;
-        }
-        table.preview-table thead {
-            position: sticky;
-            top: 0;
-            background-color: #f1f3f5;
-            z-index: 1;
-        }
-        .file-label {
-            font-weight: 600;
-        }
-        .btn-primary {
-            border-radius: 999px;
-            padding: 10px 20px;
-        }
-        .btn-secondary {
-            border-radius: 999px;
-            padding: 8px 16px;
-        }
-        .status-text {
-            font-size: 0.9rem;
-            color: #6c757d;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <title>Packing List / Commercial Invoice 產生工具</title>
+
+  <!-- Bootstrap CDN -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+    crossorigin="anonymous"
+  />
+
+  <!-- PapaParse：讀取 CSV -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- SheetJS：產生 Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    body {
+      background-color: #f5f5f7;
+    }
+    .container-main {
+      max-width: 1100px;
+      margin-top: 40px;
+      margin-bottom: 40px;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+      padding: 32px 32px 40px;
+    }
+    .preview-table-wrapper {
+      max-height: 360px;
+      overflow: auto;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      background-color: #fafafa;
+    }
+    table.preview-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    table.preview-table th,
+    table.preview-table td {
+      border: 1px solid #dee2e6;
+      padding: 6px 8px;
+      white-space: nowrap;
+    }
+    table.preview-table thead {
+      position: sticky;
+      top: 0;
+      background-color: #f1f3f5;
+      z-index: 1;
+    }
+    .file-label {
+      font-weight: 600;
+    }
+    .btn-primary {
+      border-radius: 999px;
+      padding: 10px 20px;
+    }
+    .btn-secondary {
+      border-radius: 999px;
+      padding: 8px 16px;
+    }
+    .status-text {
+      font-size: 0.9rem;
+      color: #6c757d;
+    }
+    .mode-badge {
+      font-size: 0.85rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+  </style>
 </head>
 <body>
 <div class="container container-main">
-    <h2 class="mb-3">Packing List 產生工具</h2>
-    <p class="text-muted mb-4">
-        僅能匯入 <strong>CSV</strong> 檔案（訂單查詢結果、產品目錄），預覽後點「轉換並下載」即可產出 <strong>.xlsx</strong> Excel 供下載。
-    </p>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Packing List / Invoice 產生工具</h3>
+    <span class="text-muted mode-badge bg-light border">v1.1.0</span>
+  </div>
 
-    <div class="mb-4">
-        <label for="orderFileInput" class="form-label file-label">1. 上傳訂單查詢結果 (CSV)</label>
-        <input
-            type="file"
-            class="form-control"
-            id="orderFileInput"
-            accept=".csv"
-        />
-        <div class="form-text">
-            僅接受 <code>.csv</code> 檔案。請確認欄位中包含 retailer_erp_customer_name、sku、quantity、Net Weight 等必要欄位。
-        </div>
+  <p class="text-muted mb-4">
+    僅能匯入 <strong>CSV</strong> 檔案（產品目錄 Catalog、訂單查詢結果），依照選擇的模式
+    <strong>Packing List</strong> 或 <strong>Invoice</strong>，
+    在前端直接產生 <strong>.xlsx</strong> 檔供下載。
+  </p>
+
+  <!-- 模式選擇 -->
+  <div class="mb-4">
+    <label for="modeSelect" class="form-label file-label">1. 選擇轉檔模式</label>
+    <select id="modeSelect" class="form-select" style="max-width: 260px;">
+      <option value="packing">Packing List</option>
+      <option value="invoice">Invoice</option>
+    </select>
+    <div class="form-text">
+      不同模式會套用不同的明細欄位與計算邏輯。
+    </div>
+  </div>
+
+  <!-- 上傳 Catalog -->
+  <div class="mb-4">
+    <label for="catalogFile" class="form-label file-label">2. 上傳產品目錄 Catalog (CSV)</label>
+    <input
+      type="file"
+      class="form-control"
+      id="catalogFile"
+      accept=".csv"
+    />
+    <div class="form-text">
+      僅接受 <code>.csv</code>。預期包含 <code>Barcode</code>、<code>G.W. (KGS)</code>、<code>Product Name</code> 等欄位；
+      第一列可為標題，程式會自動尋找真正的表頭。
+    </div>
+  </div>
+
+  <!-- 上傳訂單 -->
+  <div class="mb-4">
+    <label for="orderFile" class="form-label file-label">3. 上傳訂單查詢結果 (CSV)</label>
+    <input
+      type="file"
+      class="form-control"
+      id="orderFile"
+      accept=".csv"
+    />
+    <div class="form-text">
+      需包含欄位：
+      <code>retailer_erp_customer_name</code>、<code>retailer_address</code>、
+      <code>retailer_contact_phone</code>、<code>retailer_contact_name</code>、
+      <code>sku</code>、<code>quantity</code>、<code>pcs_per_carton</code>、
+      <code>carton</code>、<code>effective_date</code>、<code>measurement</code>、
+      <code>Net Weight</code>，
+      以及（Commercial Invoice 模式）<code>quoted_price_currency</code>。
+    </div>
+  </div>
+
+  <!-- 預覽區 -->
+  <div class="mb-3 d-flex align-items-center justify-content-between">
+    <span class="file-label">4. 訂單內容預覽（最多顯示前 100 列）</span>
+    <button type="button" class="btn btn-secondary btn-sm" id="clearPreviewBtn">
+      清除預覽
+    </button>
+  </div>
+
+  <div class="preview-table-wrapper mb-4" id="previewWrapper" style="display: none;">
+    <table class="preview-table" id="previewTable">
+      <thead id="previewThead"></thead>
+      <tbody id="previewTbody"></tbody>
+    </table>
+  </div>
+
+  <p class="status-text" id="statusText">尚未選擇檔案。</p>
+
+  <hr class="my-4" />
+
+  <!-- 下載 -->
+  <div class="d-flex flex-wrap align-items-center justify-content-between">
+    <div class="mb-2">
+      <span class="file-label">5. 轉換並下載 Excel</span>
+      <div class="form-text">
+        會先讀取 Catalog 建立字典（Barcode → { gw, name, unitPrice }），再解析訂單並依模式產出 Packing List 或 Commercial Invoice。
+      </div>
     </div>
 
-    <div class="mb-3 d-flex align-items-center justify-content-between">
-        <span class="file-label">2. 上傳內容預覽（最多顯示前 100 列）</span>
-        <button type="button" class="btn btn-secondary btn-sm" id="clearPreviewBtn">
-            清除預覽
-        </button>
-    </div>
-
-    <div class="preview-table-wrapper mb-4" id="previewWrapper" style="display: none;">
-        <table class="preview-table" id="previewTable">
-            <thead id="previewThead"></thead>
-            <tbody id="previewTbody"></tbody>
-        </table>
-    </div>
-
-    <p class="status-text" id="statusText">尚未選擇訂單檔案。</p>
-
-    <!-- Catalog 上傳區（樣板改為內建，不需上傳） -->
-    <hr class="my-4" />
-    <div class="mb-3">
-        <label for="catalogFileInput" class="form-label file-label">3. 上傳產品目錄 Catalog (CSV)</label>
-        <input
-            type="file"
-            class="form-control"
-            id="catalogFileInput"
-            accept=".csv"
-        />
-        <div class="form-text">
-            僅接受 <code>.csv</code>。預期包含 Barcode、G.W. (KGS)、Product Name 等欄位。
-        </div>
-    </div>
-
-    <hr class="my-4" />
-    <div class="d-flex flex-wrap align-items-center justify-content-between">
-        <div class="mb-2">
-            <span class="file-label">4. 轉換並下載 Packing List</span>
-            <div class="form-text">
-                僅能匯入 CSV 檔案，產出為 Excel <code>.xlsx</code> 供下載。
-            </div>
-        </div>
-
-        <button type="button" class="btn btn-primary mb-2" id="convertBtn">
-            轉換並下載 Packing List
-        </button>
-    </div>
+    <button type="button" class="btn btn-primary mb-2" id="generateBtn">
+      轉換並下載
+    </button>
+  </div>
 </div>
 
 <script>
-    const orderFileInput = document.getElementById("orderFileInput");
-    const catalogFileInput = document.getElementById("catalogFileInput");
-    const previewWrapper = document.getElementById("previewWrapper");
-    const previewThead = document.getElementById("previewThead");
-    const previewTbody = document.getElementById("previewTbody");
-    const statusText = document.getElementById("statusText");
-    const clearPreviewBtn = document.getElementById("clearPreviewBtn");
-    const convertBtn = document.getElementById("convertBtn");
+  const modeSelect = document.getElementById("modeSelect");
+  const catalogFileInput = document.getElementById("catalogFile");
+  const orderFileInput = document.getElementById("orderFile");
+  const previewWrapper = document.getElementById("previewWrapper");
+  const previewThead = document.getElementById("previewThead");
+  const previewTbody = document.getElementById("previewTbody");
+  const statusText = document.getElementById("statusText");
+  const clearPreviewBtn = document.getElementById("clearPreviewBtn");
+  const generateBtn = document.getElementById("generateBtn");
 
-    let currentOrderFile = null;
-    let currentCatalogFile = null;
+  let currentCatalogFile = null;
+  let currentOrderFile = null;
 
-    function clearPreview() {
-        previewThead.innerHTML = "";
-        previewTbody.innerHTML = "";
+  function renderOrderPreview(rows) {
+    if (!rows || rows.length === 0) {
+      previewWrapper.style.display = "none";
+      statusText.textContent = "訂單檔案沒有可預覽的資料。";
+      return;
+    }
+
+    const fields = Object.keys(rows[0] || {});
+    previewThead.innerHTML = "";
+    previewTbody.innerHTML = "";
+
+    const trHead = document.createElement("tr");
+    fields.forEach((field) => {
+      const th = document.createElement("th");
+      th.textContent = field;
+      trHead.appendChild(th);
+    });
+    previewThead.appendChild(trHead);
+
+    rows.slice(0, 100).forEach((row) => {
+      const tr = document.createElement("tr");
+      fields.forEach((field) => {
+        const td = document.createElement("td");
+        let val = row[field];
+        if (val === null || typeof val === "undefined") {
+          val = "";
+        }
+        td.textContent = val;
+        tr.appendChild(td);
+      });
+      previewTbody.appendChild(tr);
+    });
+
+    previewWrapper.style.display = "block";
+  }
+
+  clearPreviewBtn.addEventListener("click", () => {
+    previewThead.innerHTML = "";
+    previewTbody.innerHTML = "";
+    previewWrapper.style.display = "none";
+    orderFileInput.value = "";
+    currentOrderFile = null;
+    statusText.textContent = "尚未選擇檔案。";
+  });
+
+  catalogFileInput.addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) {
+      currentCatalogFile = null;
+      return;
+    }
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      alert("Catalog 僅接受 .csv 檔案。");
+      catalogFileInput.value = "";
+      currentCatalogFile = null;
+      return;
+    }
+    currentCatalogFile = file;
+  });
+
+  orderFileInput.addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) {
+      currentOrderFile = null;
+      previewWrapper.style.display = "none";
+      statusText.textContent = "尚未選擇檔案。";
+      return;
+    }
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      alert("訂單查詢結果僅接受 .csv 檔案。");
+      orderFileInput.value = "";
+      currentOrderFile = null;
+      previewWrapper.style.display = "none";
+      statusText.textContent = "尚未選擇檔案。";
+      return;
+    }
+
+    currentOrderFile = file;
+    statusText.textContent = `已選擇檔案：${file.name}，正在解析中...`;
+
+    Papa.parse(file, {
+      header: true,
+      dynamicTyping: false,
+      skipEmptyLines: "greedy",
+      encoding: "UTF-8",
+      complete: function (results) {
+        const rows = (results.data || []).filter(row =>
+          Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== "")
+        );
+        if (!rows || rows.length === 0) {
+          previewWrapper.style.display = "none";
+          statusText.textContent = "無法從 CSV 讀出資料（可能為空檔或編碼問題）。";
+          return;
+        }
+        renderOrderPreview(rows);
+        statusText.textContent = `訂單已載入，共 ${rows.length} 筆（預覽前 100 筆）。`;
+      },
+      error: function (err) {
+        console.error(err);
+        statusText.textContent = "CSV 解析失敗：" + err.message;
         previewWrapper.style.display = "none";
-        statusText.textContent = "尚未選擇訂單檔案。";
+      },
+    });
+  });
+
+  function cleanBarcode(value) {
+    return String(value || "").trim().replace(/[^a-zA-Z0-9]/g, "");
+  }
+
+  function parseCatalogToMap(file) {
+    return new Promise((resolve, reject) => {
+      Papa.parse(file, {
+        header: false,
+        dynamicTyping: false,
+        skipEmptyLines: true,
+        encoding: "UTF-8",
+        complete: function (results) {
+          const map = {};
+          let barcodeIdx = -1;
+          let gwIdx = -1;
+          let nameIdx = -1;
+          let priceIdx = -1;
+
+          (results.data || []).forEach((row) => {
+            if (barcodeIdx === -1) {
+              const upperRow = row.map(cell => String(cell || "").toUpperCase());
+              barcodeIdx = upperRow.findIndex(cell => cell.includes("BARCODE"));
+              gwIdx = upperRow.findIndex(cell => cell.includes("G.W"));
+              nameIdx = upperRow.findIndex(cell => cell.includes("PRODUCT NAME"));
+              priceIdx = upperRow.findIndex(cell =>
+                cell.includes("UNIT PRICE") || cell.includes("PRICE")
+              );
+              return;
+            }
+
+            if (barcodeIdx !== -1 && row[barcodeIdx]) {
+              const rawBarcode = String(row[barcodeIdx]);
+              const key = cleanBarcode(rawBarcode);
+              const gw = (gwIdx !== -1) ? (parseFloat(row[gwIdx]) || 0) : 0;
+              const prodName = (nameIdx !== -1) ? String(row[nameIdx] || "").trim() : "";
+              const unitPrice = (priceIdx !== -1) ? (parseFloat(row[priceIdx]) || 0) : 0;
+
+              if (key) {
+                map[key] = {
+                  gw: gw,
+                  name: prodName,
+                  unitPrice: unitPrice
+                };
+              }
+            }
+          });
+
+          console.log("Catalog Map 建立完成，樣本：", Object.entries(map).slice(0, 2));
+          resolve(map);
+        },
+        error: reject
+      });
+    });
+  }
+
+  function parseOrderToRows(file) {
+    return new Promise((resolve, reject) => {
+      Papa.parse(file, {
+        header: true,
+        dynamicTyping: false,
+        skipEmptyLines: "greedy",
+        encoding: "UTF-8",
+        complete: (results) => {
+          const rows = (results.data || []).filter(row =>
+            Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== "")
+          );
+          resolve(rows);
+        },
+        error: reject,
+      });
+    });
+  }
+
+  function buildHeaderRows(sheetData, mode, firstRow) {
+    const retailer_name = String(firstRow["retailer_erp_customer_name"] || "").trim();
+    const retailer_address = String(firstRow["retailer_address"] || "").trim();
+    const retailer_tel = String(firstRow["retailer_contact_phone"] || "").trim();
+    const retailer_contact = String(firstRow["retailer_contact_name"] || "").trim();
+
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const packingNo = "JY" + dateStr.replace(/-/g, "");
+
+    const isInvoice = mode === "invoice";
+
+    const sellerTitle = isInvoice ? "Juan Yuan Limited" : "Juan Yuan Co., Ltd.";
+    const sellerTel = isInvoice ? "886 2 77515350 #216" : "886 2 77515350 #309";
+    const sellerAttn = isInvoice ? "ATTN: Mary Wang" : "Contact: ";
+
+    sheetData.push(["PACKING LIST"]);
+
+    sheetData.push(["Date:", dateStr, "", "", "NO：", packingNo]);
+
+    sheetData.push([sellerTitle, "", "", "", "Buyer :", retailer_name]);
+    sheetData.push(["Address :", "6F., No. 19-9, Sanchong Rd., Nangang Dist., Taipei City 115601, Taiwan (R.O.C.)", "", "", "Address :", retailer_address]);
+    sheetData.push(["Tel :", sellerTel, "", "", "Tel :", retailer_tel]);
+    sheetData.push([sellerAttn, "", "", "", "ATTN:", retailer_contact]);
+
+    if (isInvoice) {
+      sheetData.push(["Terms of Delivery:", "EXW Taoyuan Taiwan", "", "", "Terms of Payment:", "100% Prepaid T/T"]);
+    } else {
+      sheetData.push(["Terms of Delivery:", "EXW Taoyuan Taiwan"]);
     }
 
-    clearPreviewBtn.addEventListener("click", () => {
-        orderFileInput.value = "";
-        currentOrderFile = null;
-        clearPreview();
+    sheetData.push([]);
+  }
+
+  function generateInvoiceSheet(orderRows, catalogMap) {
+    const wb = XLSX.utils.book_new();
+    const wsData = [];
+
+    const first = orderRows[0];
+    const buyerName = String(first["retailer_erp_customer_name"] || "").trim();
+    const buyerAddress = String(first["retailer_address"] || "").trim();
+    const buyerTel = String(first["retailer_contact_phone"] || "").trim();
+    const buyerContact = String(first["retailer_contact_name"] || "").trim();
+
+    // 上半部：Invoice 基本資訊並列排版
+    wsData.push(["Invoice"]);
+    wsData.push([]);
+    wsData.push(["Juan Yuan Limited", "", "", "", buyerName]);
+    wsData.push([
+      "Address :", "6F., No. 19-9, Sanchong Rd., Nangang Dist., Taipei City 115601, Taiwan (R.O.C.)",
+      "", "", "Address :", buyerAddress
+    ]);
+    wsData.push(["Tel :", "886 2 77515350 #216", "", "", "Tel :", buyerTel]);
+    wsData.push(["ATTN:", "Mary Wang", "", "", "ATTN:", buyerContact]);
+    wsData.push(["Terms of Delivery:", "EXW Taoyuan Taiwan", "", "", "Terms of Payment:", "100% Prepaid T/T"]);
+    wsData.push([]);
+
+    // 明細表頭（雙層）
+    wsData.push(["No.", "Barcode", "品名", "箱入數", "BBD", "商品報價", "下單數量", "金額"]);
+    wsData.push(["", "", "Description", "Pcs / Carton", "Days", "Unit Price (USD)", "Order Quantity", "Amount"]);
+
+    let totalQty = 0;
+    let totalAmount = 0;
+
+    orderRows.forEach((row, index) => {
+      const sku = String(row["sku"] || row["Barcode"] || "").trim();
+      const cleanSku = sku.replace(/[^a-zA-Z0-9]/g, "");
+
+      const catalogItem = catalogMap[cleanSku] || { name: "", gw: 0, unitPrice: 0 };
+      const productName = catalogItem.name || String(row["description"] || row["DESCRIPTION"] || row["name"] || "").trim();
+
+      const pcsPerCarton = parseFloat(row["pcs_per_carton"]) || 0;
+      const bbd = String(row["bbd"] || row["effective_date"] || "").trim();
+      const unitPrice = parseFloat(row["quoted_price_currency"]) || 0;
+      const qty = parseFloat(row["quantity"] || row["QUANTITY"]) || 0;
+      const amount = unitPrice * qty;
+
+      totalQty += qty;
+      totalAmount += amount;
+
+      wsData.push([
+        index + 1,
+        sku,
+        productName,
+        pcsPerCarton,
+        bbd,
+        unitPrice,
+        qty,
+        amount
+      ]);
     });
 
-    // 訂單 CSV 上傳＋預覽
-    orderFileInput.addEventListener("change", (event) => {
-        const file = event.target.files[0];
-        if (!file) {
-            currentOrderFile = null;
-            clearPreview();
-            return;
+    wsData.push([]);
+    wsData.push(["TOTAL", "", "", "", "", "", totalQty, totalAmount]);
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, "Invoice");
+    return wb;
+  }
+
+  function generatePackingListSheet(orderRows, catalogMap) {
+    const wb = XLSX.utils.book_new();
+    const wsData = [];
+
+    const first = orderRows[0];
+    buildHeaderRows(wsData, "packing", first);
+
+    wsData.push(["PACKING LIST"]);
+    wsData.push([]);
+
+    wsData.push([
+      "Packing No.", "Barcode", "DESCRIPTION", "Pcs per \nCarton", "QUANTITY",
+      "Carton", "Best Before Date", "Measurement", "Net Weight",
+      "Total Net Weight", "Gross Weight/Carton", "Total Gross Weight",
+    ]);
+    wsData.push([
+      "", "", "", "PCS", "PCS",
+      "", "", "(cm)", "(KG)",
+      "(KG)", "(KG)", "(KG)",
+    ]);
+
+    orderRows.forEach((row) => {
+      const rawSku = String(row["sku"] || row["Barcode"] || "").trim();
+      const cleanSku = cleanBarcode(rawSku);
+      const catalogItem = catalogMap[cleanSku] || { gw: 0, name: "", unitPrice: 0 };
+
+      const productName = catalogItem.name || String(row["description"] || row["DESCRIPTION"] || row["name"] || "").trim();
+
+      const qty = parseFloat(row["quantity"] || row["QUANTITY"]) || 0;
+      const pcsPerCarton = parseFloat(row["pcs_per_carton"] || row["Pcs per Carton"]) || 1;
+      const netWeight = parseFloat(row["Net Weight"]) || 0;
+
+      let carton = parseFloat(row["carton"] || row["Carton"]);
+      if (!carton || isNaN(carton)) {
+        carton = (pcsPerCarton > 0) ? (qty / pcsPerCarton) : 0;
+      }
+
+      const totalNetWeight = netWeight * qty;
+      const grossWeightPerCarton = catalogItem.gw;
+      const totalGrossWeight = grossWeightPerCarton * carton;
+
+      let rawDate = String(row["effective_date"] || row["Best Before Date"] || "").trim();
+      if (rawDate && !/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+        const d = new Date(rawDate);
+        if (!isNaN(d.getTime())) {
+          rawDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
         }
+      }
+      const bestBeforeDate = rawDate ? rawDate + " " : "";
 
-        currentOrderFile = file;
-        statusText.textContent = `已選擇檔案：${file.name}，正在解析中...`;
+      const measurement = String(row["measurement"] || row["Measurement"] || "").trim();
 
-        if (!file.name.toLowerCase().endsWith(".csv")) {
-            alert("僅接受 .csv 檔案。");
-            orderFileInput.value = "";
-            currentOrderFile = null;
-            clearPreview();
-            return;
-        }
-
-        Papa.parse(file, {
-                header: true,
-                dynamicTyping: false,
-                preview: 100,
-                skipEmptyLines: "greedy",
-                encoding: "UTF-8",
-                complete: function (results) {
-                    const data = results.data;
-                    const fields = results.meta.fields || [];
-
-                    if (!data || data.length === 0) {
-                        statusText.textContent = "無法從 CSV 讀出資料（可能為空檔或編碼問題）。";
-                        clearPreview();
-                        return;
-                    }
-
-                    previewThead.innerHTML = "";
-                    const trHead = document.createElement("tr");
-                    fields.forEach((field) => {
-                        const th = document.createElement("th");
-                        th.textContent = field;
-                        trHead.appendChild(th);
-                    });
-                    previewThead.appendChild(trHead);
-
-                    previewTbody.innerHTML = "";
-                    data.forEach((row) => {
-                        const tr = document.createElement("tr");
-                        fields.forEach((field) => {
-                            const td = document.createElement("td");
-                            let val = row[field];
-                            if (val === null || typeof val === "undefined") {
-                                val = "";
-                            }
-                            td.textContent = val;
-                            tr.appendChild(td);
-                        });
-                        previewTbody.appendChild(tr);
-                    });
-
-                    previewWrapper.style.display = "block";
-                    statusText.textContent = `已成功載入預覽：${data.length} 筆（顯示前 100 筆）。`;
-                },
-                error: function (err) {
-                    console.error(err);
-                    statusText.textContent = "CSV 解析失敗：" + err.message;
-                    clearPreview();
-                },
-            });
+      wsData.push([
+        "",
+        rawSku,
+        productName,
+        pcsPerCarton,
+        qty,
+        carton,
+        bestBeforeDate,
+        measurement,
+        netWeight,
+        totalNetWeight,
+        grossWeightPerCarton,
+        totalGrossWeight,
+      ]);
     });
 
-    catalogFileInput.addEventListener("change", (event) => {
-        const file = event.target.files[0];
-        if (!file) {
-            currentCatalogFile = null;
-            return;
-        }
-        if (!file.name.toLowerCase().endsWith(".csv")) {
-            alert("僅接受 .csv 檔案。");
-            catalogFileInput.value = "";
-            currentCatalogFile = null;
-            return;
-        }
-        currentCatalogFile = file;
-    });
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, "Packing List");
+    return wb;
+  }
 
-    function toNumber(value, defaultVal = 0) {
-        const n = parseFloat(value);
-        return isNaN(n) ? defaultVal : n;
+  generateBtn.addEventListener("click", async () => {
+    if (!currentCatalogFile || !currentOrderFile) {
+      alert("請先上傳 Catalog 與 訂單 CSV 檔案。");
+      return;
     }
 
-    function setCell(ws, addr, value) {
-        if (!ws[addr]) ws[addr] = {};
-        ws[addr].v = value;
-        ws[addr].t = typeof value === "number" ? "n" : "s";
+    statusText.textContent = "正在解析 Catalog 與訂單，並產生 Excel，請稍候...";
+
+    try {
+      const catalogMap = await parseCatalogToMap(currentCatalogFile);
+      const orderRows = await parseOrderToRows(currentOrderFile);
+
+      if (!orderRows || orderRows.length === 0) {
+        alert("訂單內容為空，無法轉換。");
+        statusText.textContent = "訂單內容為空。";
+        return;
+      }
+
+      const mode = modeSelect.value;
+      let wb;
+
+      if (mode === "invoice") {
+        wb = generateInvoiceSheet(orderRows, catalogMap);
+      } else {
+        wb = generatePackingListSheet(orderRows, catalogMap);
+      }
+
+      const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob = new Blob([wbout], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = mode === "invoice" ? "Commercial_Invoice.xlsx" : "Packing_List_Output.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      statusText.textContent = "已完成轉換並下載 Excel。";
+    } catch (err) {
+      console.error("轉換發生錯誤:", err);
+      alert("轉換失敗，請檢查檔案格式或內容。");
+      statusText.textContent = "轉換過程發生錯誤，請查看主控台。";
     }
-
-    convertBtn.addEventListener("click", () => {
-        if (!currentOrderFile) {
-            alert("請先上傳訂單查詢結果 CSV 檔案。");
-            return;
-        }
-        if (!currentCatalogFile) {
-            alert("請先上傳產品目錄 Catalog CSV 檔案。");
-            return;
-        }
-        statusText.textContent = "正在轉換並產生 Excel，請稍候...";
-
-        // 步驟 1：先解析 Catalog 建立 catalogMap（完成後才處理訂單，避免非同步導致 Gross Weight 為 0）
-        function parseCatalogToMap(file) {
-            return new Promise((resolve, reject) => {
-                if (!file.name.toLowerCase().endsWith(".csv")) {
-                    reject(new Error("僅接受 CSV 檔案"));
-                    return;
-                }
-                    Papa.parse(file, {
-                        header: false,
-                        dynamicTyping: false,
-                        skipEmptyLines: true,
-                        encoding: "UTF-8",
-                        complete: (results) => {
-                            const catalogMap = {};
-                            let barcodeColIndex = -1;
-                            let gwColIndex = -1;
-                            let nameColIndex = -1;
-                            const rows = results.data || [];
-                            rows.forEach((row) => {
-                                if (barcodeColIndex === -1) {
-                                    const b = row.findIndex(cell => String(cell || "").toUpperCase().includes("BARCODE"));
-                                    const g = row.findIndex(cell => String(cell || "").toUpperCase().includes("G.W"));
-                                    const n = row.findIndex(cell => String(cell || "").toUpperCase().includes("PRODUCT NAME"));
-                                    if (b !== -1) {
-                                        barcodeColIndex = b;
-                                        gwColIndex = g;
-                                        nameColIndex = n;
-                                    }
-                                    return;
-                                }
-                                if (row[barcodeColIndex] != null && String(row[barcodeColIndex]).trim() !== "") {
-                                    const rawBarcode = String(row[barcodeColIndex]).trim();
-                                    const cleanBarcode = rawBarcode.replace(/[^a-zA-Z0-9]/g, "");
-                                    const gw = (gwColIndex !== -1) ? (parseFloat(row[gwColIndex]) || 0) : 0;
-                                    const prodName = (nameColIndex !== -1) ? String(row[nameColIndex] || "").trim() : "";
-                                    if (cleanBarcode) {
-                                        catalogMap[cleanBarcode] = { gw: gw, name: prodName };
-                                    }
-                                }
-                            });
-                            resolve(catalogMap);
-                        },
-                        error: (err) => reject(err),
-                    });
-            });
-        }
-
-        // 步驟 2：Catalog 完成後才解析訂單（僅接受 CSV）
-        function parseOrderToRows(file) {
-            return new Promise((resolve, reject) => {
-                if (!file.name.toLowerCase().endsWith(".csv")) {
-                    reject(new Error("僅接受 CSV 檔案"));
-                    return;
-                }
-                Papa.parse(file, {
-                    header: true,
-                    dynamicTyping: false,
-                    skipEmptyLines: "greedy",
-                    encoding: "UTF-8",
-                    complete: (results) => {
-                        const rows = (results.data || []).filter(row =>
-                            Object.values(row).some(v => v !== null && v !== undefined && String(v).trim() !== "")
-                        );
-                        resolve(rows);
-                    },
-                    error: (err) => reject(err),
-                });
-            });
-        }
-
-        parseCatalogToMap(currentCatalogFile)
-            .then((catalogMap) => parseOrderToRows(currentOrderFile).then((orderRows) => ({ orderRows, catalogMap })))
-            .then(({ orderRows, catalogMap }) => {
-                if (!orderRows || orderRows.length === 0) {
-                    alert("訂單內容為空，無法轉換。");
-                    statusText.textContent = "訂單內容為空。";
-                    return;
-                }
-
-                // === 建立 Excel 工作簿：Seller 左側、Buyer 右側（E 欄起）並列 ===
-                const wb = XLSX.utils.book_new();
-                const sheetData = [];
-
-                const first = orderRows[0];
-                // 買方資料嚴格對應：Buyer=retailer_erp_customer_name, Address=retailer_address, Tel/Contact 維持
-                const retailer_name = (first["retailer_erp_customer_name"] || "").toString().trim();
-                const retailer_warehouse_address = (first["retailer_address"] || "").toString().trim();
-                const retailer_contact_phone = (first["retailer_contact_phone"] || "").toString().trim();
-                const retailer_contact_name = (first["retailer_contact_name"] || "").toString().trim();
-
-                const today = new Date();
-                const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-                const packingNo = "JY" + dateStr.replace(/-/g, "");
-
-                // 表頭二維陣列：PACKING LIST 獨立一行，NO： 獨立一行，再 Seller/Buyer 並列
-                sheetData.push(["PACKING LIST"]);
-                sheetData.push(["Date:", dateStr, "", "", "NO：", packingNo]);
-                sheetData.push(["Seller :", "Juan Yuan Co., Ltd.", "", "", "Buyer :", retailer_name]);
-                sheetData.push([
-                    "Address:",
-                    "6F., No. 19-9, Sanchong Rd., Nangang Dist., Taipei City 115601, Taiwan (R.O.C.)",
-                    "", "", "Address:", retailer_warehouse_address,
-                ]);
-                sheetData.push(["Tel:", "+886-2-77515350", "", "", "Tel:", retailer_contact_phone]);
-                sheetData.push(["Contact:", "", "", "", "Contact:", retailer_contact_name]);
-                sheetData.push([]);
-                sheetData.push(["Container :", "▢ LCL", "", "ETD date:"]);
-                sheetData.push(["", "▢ FCL", "▢ 20'GP"]);
-                sheetData.push(["", "▢ 40'GP"]);
-                sheetData.push([]);
-                sheetData.push(["Temprature request:", "▢ Ambient", "▢ Cool"]);
-                sheetData.push(["Packing:", "▢ Carton", "▢ Pallet", "▢ Roll", "▢ others"]);
-                sheetData.push(["Payment conditions:", "T/T at sight"]);
-                sheetData.push(["Delivery term:", "EXW"]);
-                sheetData.push([]);
-
-                // 明細雙層表頭：第一列主標題、第二列單位
-                sheetData.push([
-                    "Packing No.", "Barcode", "DESCRIPTION", "Pcs per \nCarton", "QUANTITY",
-                    "Carton", "Best Before Date", "Measurement", "Net Weight",
-                    "Total Net Weight", "Gross Weight/Carton", "Total Gross Weight",
-                ]);
-                sheetData.push([
-                    "", "", "", "PCS", "PCS",
-                    "", "", "(cm)", "(KG)",
-                    "(KG)", "(KG)", "(KG)",
-                ]);
-
-                // 明細資料：DESCRIPTION 以 Catalog 的 Product Name 為單一來源，毛重從 catalogMap 物件取出
-                orderRows.forEach((row) => {
-                    const rawSku = String(row["sku"] || row["Barcode"] || "").trim();
-                    const cleanSku = rawSku.replace(/[^a-zA-Z0-9]/g, "");
-                    const catalogItem = catalogMap[cleanSku] || { gw: 0, name: "" };
-                    const productName = catalogItem.name || String(row["description"] || row["DESCRIPTION"] || row["name"] || "").trim();
-
-                    const qty = parseFloat(row["quantity"] || row["QUANTITY"]) || 0;
-                    const pcsPerCarton = parseFloat(row["pcs_per_carton"] || row["Pcs per Carton"]) || 1;
-                    const netWeight = parseFloat(row["Net Weight"]) || 0;
-
-                    let carton = parseFloat(row["carton"] || row["Carton"]);
-                    if (!carton || isNaN(carton)) {
-                        carton = (pcsPerCarton > 0) ? (qty / pcsPerCarton) : 0;
-                    }
-
-                    const totalNetWeight = netWeight * qty;
-                    const grossWeightPerCarton = catalogItem.gw;
-                    const totalGrossWeight = grossWeightPerCarton * carton;
-
-                    // 7. Best Before Date：抓取全小寫 effective_date，尾端加空白強迫 Excel/SheetJS 當純文字，避免變成 46791
-                    let rawDate = String(row["effective_date"] || row["Best Before Date"] || "").trim();
-                    if (rawDate) {
-                        if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
-                            const d = new Date(rawDate);
-                            if (!isNaN(d.getTime())) {
-                                rawDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-                            }
-                        }
-                    }
-                    const bestBeforeDate = rawDate ? rawDate + " " : "";
-
-                    const measurement = String(row["measurement"] || row["Measurement"] || "").trim();
-
-                    // 與明細表頭順序一致，共 12 欄（Barcode 顯示原始值，DESCRIPTION 為 Catalog Product Name）
-                    sheetData.push([
-                        "",                    // Packing No. (留空)
-                        rawSku,                // Barcode
-                        productName,           // DESCRIPTION（Catalog 為單一來源）
-                        pcsPerCarton,         // Pcs per Carton
-                        qty,                   // QUANTITY
-                        carton,                // Carton
-                        bestBeforeDate,        // Best Before Date
-                        measurement,           // Measurement
-                        netWeight,             // Net Weight (KG)
-                        totalNetWeight,        // Total Net Weight
-                        grossWeightPerCarton,  // Gross Weight/Carton
-                        totalGrossWeight,      // Total Gross Weight
-                    ]);
-                });
-
-                const ws = XLSX.utils.aoa_to_sheet(sheetData);
-                XLSX.utils.book_append_sheet(wb, ws, "Packing List");
-
-                const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-                const blob = new Blob([wbout], {
-                    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                });
-
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = "Packing_List_Output.xlsx";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-                statusText.textContent = "已完成轉換並下載 Packing List。";
-            })
-            .catch((err) => {
-                console.error(err);
-                alert("轉換過程發生錯誤：" + err.message);
-                statusText.textContent = "轉換過程發生錯誤，請查看主控台。";
-            });
-    });
+  });
 </script>
 </body>
 </html>
